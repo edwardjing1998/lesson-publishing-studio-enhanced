@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lesson-publishing-studio
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lesson-publishing-studio
+  template:
+    metadata:
+      labels:
+        app: lesson-publishing-studio
+    spec:
+      containers:
+        - name: app
+          image: REPLACE_WITH_IMAGE
+          ports:
+            - containerPort: 8083
+              name: http
+          envFrom:
+            - secretRef:
+                name: lesson-publishing-studio-env
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: SERVER_PORT
+              value: "8083"
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 1Gi
+              cpu: "1"
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lesson-publishing-studio
+spec:
+  selector:
+    app: lesson-publishing-studio
+  ports:
+    - name: http
+      port: 8083
+      targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: lesson-publishing-studio
+spec:
+  to:
+    kind: Service
+    name: lesson-publishing-studio
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

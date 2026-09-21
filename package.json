@@ -1,0 +1,35 @@
+{
+  "name": "lesson-publishing-studio",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"node --env-file=.env --watch server/index.mjs\"",
+    "build": "vite build",
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "test": "node --test",
+    "setup": "node --env-file=.env server/setup.mjs"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.11.1",
+    "@azure/storage-blob": "^12.28.0",
+    "express": "^5.1.0",
+    "marked": "^16.2.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "rehype-katex": "^7.0.1",
+    "katex": "^0.16.22",
+    "sanitize-html": "^2.17.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.4",
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1"
+  }
+}

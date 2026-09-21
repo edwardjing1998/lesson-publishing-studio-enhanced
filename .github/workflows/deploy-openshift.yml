@@ -1,0 +1,187 @@
+name: Deploy Lesson Publishing Studio
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub Environment and OpenShift target
+        required: true
+        type: choice
+        options: [development, qa, production]
+        default: development
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: lesson-publishing-studio-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: ${{ inputs.environment }}
+    env:
+      IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}
+      OPENSHIFT_SERVER: ${{ vars.OPENSHIFT_SERVER }}
+      OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE }}
+      OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+      GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_SQL_WAREHOUSE_ID: ${{ vars.DATABRICKS_SQL_WAREHOUSE_ID }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      AZURE_STORAGE_ENDPOINT: ${{ vars.AZURE_STORAGE_ENDPOINT }}
+      AZURE_STORAGE_CONTAINER: ${{ vars.AZURE_STORAGE_CONTAINER }}
+      AZURE_STORAGE_PUBLISHED_PREFIX: ${{ vars.AZURE_STORAGE_PUBLISHED_PREFIX }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+      AZURE_OPENAI_DEPLOYMENT: ${{ vars.AZURE_OPENAI_DEPLOYMENT }}
+      AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION }}
+      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      APP_USERNAME: ${{ vars.APP_USERNAME }}
+      APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Validate configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(OPENSHIFT_SERVER OPENSHIFT_NAMESPACE OPENSHIFT_TOKEN GHCR_USERNAME GHCR_PULL_TOKEN DATABRICKS_HOST DATABRICKS_SQL_WAREHOUSE_ID DATABRICKS_CLIENT_ID DATABRICKS_CLIENT_SECRET AZURE_STORAGE_ENDPOINT AZURE_STORAGE_CONTAINER AZURE_STORAGE_PUBLISHED_PREFIX AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_CLIENT_SECRET AZURE_OPENAI_ENDPOINT AZURE_OPENAI_DEPLOYMENT AZURE_OPENAI_API_VERSION AZURE_OPENAI_API_KEY APP_USERNAME APP_PASSWORD)
+          for name in "${required[@]}"; do
+            [[ -n "${!name:-}" ]] || { echo "::error::Missing GitHub Environment variable or secret: $name"; exit 1; }
+          done
+          [[ "$OPENSHIFT_SERVER" == https://* ]] || { echo "::error::OPENSHIFT_SERVER must be an HTTPS URL"; exit 1; }
+          [[ "$OPENSHIFT_NAMESPACE" != *'/'* ]] || { echo "::error::OPENSHIFT_NAMESPACE must be a project name, not a URL"; exit 1; }
+          (( ${#APP_PASSWORD} >= 16 )) || { echo "::error::APP_PASSWORD must contain at least 16 characters"; exit 1; }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Test and build
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare image name
+        id: image
+        shell: bash
+        run: |
+          repository="$(echo "$IMAGE_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          echo "uri=${repository}:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "latest=${repository}:${{ inputs.environment }}-latest" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.uri }}
+            ${{ steps.image.outputs.latest }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install OpenShift CLI
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: latest
+
+      - name: Log in to OpenShift
+        shell: bash
+        run: |
+          set -euo pipefail
+          oc login "$OPENSHIFT_SERVER" --token="$OPENSHIFT_TOKEN" --insecure-skip-tls-verify=true
+          oc project "$OPENSHIFT_NAMESPACE"
+
+      - name: Configure private registry access
+        shell: bash
+        run: |
+          set -euo pipefail
+          oc create secret docker-registry lesson-publishing-studio-ghcr --docker-server=ghcr.io --docker-username="$GHCR_USERNAME" --docker-password="$GHCR_PULL_TOKEN" --dry-run=client -o yaml | oc apply -f -
+          oc secrets link default lesson-publishing-studio-ghcr --for=pull
+
+      - name: Configure runtime secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          oc create secret generic lesson-publishing-studio-env \
+            --from-literal=DATABRICKS_HOST="$DATABRICKS_HOST" \
+            --from-literal=DATABRICKS_SQL_WAREHOUSE_ID="$DATABRICKS_SQL_WAREHOUSE_ID" \
+            --from-literal=DATABRICKS_CLIENT_ID="$DATABRICKS_CLIENT_ID" \
+            --from-literal=DATABRICKS_CLIENT_SECRET="$DATABRICKS_CLIENT_SECRET" \
+            --from-literal=AZURE_STORAGE_ENDPOINT="$AZURE_STORAGE_ENDPOINT" \
+            --from-literal=AZURE_STORAGE_CONTAINER="$AZURE_STORAGE_CONTAINER" \
+            --from-literal=AZURE_STORAGE_PUBLISHED_PREFIX="$AZURE_STORAGE_PUBLISHED_PREFIX" \
+            --from-literal=AZURE_CLIENT_ID="$AZURE_CLIENT_ID" \
+            --from-literal=AZURE_TENANT_ID="$AZURE_TENANT_ID" \
+            --from-literal=AZURE_CLIENT_SECRET="$AZURE_CLIENT_SECRET" \
+            --from-literal=AZURE_OPENAI_ENDPOINT="$AZURE_OPENAI_ENDPOINT" \
+            --from-literal=AZURE_OPENAI_DEPLOYMENT="$AZURE_OPENAI_DEPLOYMENT" \
+            --from-literal=AZURE_OPENAI_API_VERSION="$AZURE_OPENAI_API_VERSION" \
+            --from-literal=AZURE_OPENAI_API_KEY="$AZURE_OPENAI_API_KEY" \
+            --from-literal=APP_USERNAME="$APP_USERNAME" \
+            --from-literal=APP_PASSWORD="$APP_PASSWORD" \
+            --dry-run=client -o yaml | oc apply -f -
+
+      - name: Deploy application
+        env:
+          IMAGE_URI: ${{ steps.image.outputs.uri }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed "s|REPLACE_WITH_IMAGE|$IMAGE_URI|g" openshift/app.yaml > openshift/app-rendered.yaml
+          oc apply -f openshift/app-rendered.yaml
+          oc rollout status deployment/lesson-publishing-studio --timeout=600s
+
+      - name: Verify route
+        shell: bash
+        run: |
+          set -euo pipefail
+          host="$(oc get route lesson-publishing-studio -o jsonpath='{.spec.host}')"
+          url="https://${host}"
+          for attempt in {1..30}; do
+            if curl --silent --show-error --fail "$url/healthz" > health.json; then
+              curl --silent --show-error --fail --user "$APP_USERNAME:$APP_PASSWORD" "$url/api/health" > api-health.json
+              echo "Application URL: $url"
+              cat api-health.json
+              exit 0
+            fi
+            sleep 5
+          done
+          oc logs deployment/lesson-publishing-studio --tail=300 || true
+          exit 1
+
+      - name: Failure diagnostics
+        if: failure()
+        run: |
+          oc get pods -l app=lesson-publishing-studio 2>/dev/null || true
+          oc logs deployment/lesson-publishing-studio --tail=300 2>/dev/null || true
+
+      - name: Log out
+        if: always()
+        run: oc logout || true
