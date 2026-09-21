@@ -11,7 +11,7 @@ import {
 } from './images.mjs';
 import { generateActivity } from './model.mjs';
 import { renderActivity } from './renderer.mjs';
-import { createActivitySvg } from './svg-generator.mjs';
+import { generateActivitySvg } from './svg-generator.mjs';
 import {
   planBundle,
   sql
@@ -181,10 +181,11 @@ async function run(job) {
         'image'
       )}.svg`;
 
-      const svg = createActivitySvg(
-        imageRequest,
-        process.env.HTML_TEMPLATE || 'classroom'
-      );
+      const svg = await generateActivitySvg({
+        request: imageRequest,
+        activity: value,
+        template: process.env.HTML_TEMPLATE || 'classroom'
+      });
 
       const saved = await uploadBytes(
         `${prefix}/assets/${fileName}`,
