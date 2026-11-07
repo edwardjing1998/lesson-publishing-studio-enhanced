@@ -159,9 +159,9 @@ export default function MarkdownCorrection({page}) {
       </select>
       <button type="button" className="saved-revision-preview-button" disabled={!!busy || !selectedRevisionId} onClick={openSavedRevisionPreview}>{busy === 'preview-revision' ? 'Loading preview...' : 'Enlarge Saved Revision'}</button>
       </div>
-      <small>Choose a saved revision, then enlarge it to see its formatted Markdown. The preview reads the saved Azure revision, not unsaved editor text.</small>
+      <small>Choose a saved revision, enlarge it, drag Markdown blocks to reorder them, and save the revision-specific layout JSON. The saved Markdown text itself is unchanged.</small>
       <small>Saving creates a new revision. Approval writes a separate pointer. Neither changes the original OCR file or Databricks tables.</small>
     </div>
-    {revisionPreview && <RenderedMarkdownModal markdown={revisionPreview.markdown} figureUrls={page.figureUrls} title={`Saved revision ${revisionPreview.revisionId.slice(0,8)}${revisionPreview.approved ? ' (APPROVED)' : ''}`} onClose={() => setRevisionPreview(null)}/>}
+    {revisionPreview && <RenderedMarkdownModal markdown={revisionPreview.markdown} figureUrls={page.figureUrls} title={`Saved revision ${revisionPreview.revisionId.slice(0,8)}${revisionPreview.approved ? ' (APPROVED)' : ''}`} revisionId={revisionPreview.revisionId} markdownBlob={name} onClose={() => setRevisionPreview(null)}/>}
   </section>;
 }
