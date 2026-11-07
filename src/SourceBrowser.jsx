@@ -2,6 +2,7 @@ import {useEffect, useMemo, useState} from 'react';
 import Markdown from 'react-markdown';
 import gfm from 'remark-gfm';
 import LayoutCanvas from './LayoutCanvas.jsx';
+import MarkdownCorrection from './MarkdownCorrection.jsx';
 import './source-browser.css';
 
 async function getJson(url, signal) {
@@ -22,7 +23,7 @@ export default function SourceBrowser() {
   const [chapter, setChapter] = useState('');
   const [pageId, setPageId] = useState('');
   const [selected, setSelected] = useState(null);
-  const [mode, setMode] = useState('compare');
+  const [mode, setMode] = useState('correct');
   const [showBoxes, setShowBoxes] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingPage, setLoadingPage] = useState(false);
@@ -69,7 +70,7 @@ export default function SourceBrowser() {
   }
 
   return <section className="source-browser" aria-label="Azure Markdown Source Browser">
-    <div className="source-browser-heading"><div><h2>Azure Markdown & Image Browser</h2><p>Browse source files in Azure Blob Storage independently of approved learning plans.</p></div><button className="secondary" onClick={() => setReload(n => n + 1)}>Refresh files</button></div>
+    <div className="source-browser-heading"><div><h2>Azure Markdown & Images</h2><p>Select a page, compare its original image with the generated Markdown, and correct the Markdown here. No Document Review navigation required.</p></div><button className="secondary" onClick={() => setReload(n => n + 1)}>Refresh files</button></div>
     <div className="source-browser-filters">
       <label>Book<select aria-label="Source Book" value={book} onChange={event => {setBook(event.target.value);setChapter('');setPageId('');}}>{books.map(x => <option key={x}>{x}</option>)}</select></label>
       <label>Chapter<select aria-label="Source Chapter" value={chapter} onChange={event => {setChapter(event.target.value);setPageId('');}}>{chapters.map(x => <option key={x}>{x}</option>)}</select></label>
@@ -80,12 +81,14 @@ export default function SourceBrowser() {
     {(loadingList || loadingPage) && <p>Loading Azure files…</p>}
     {!loadingList && pages.length === 0 && <p>No generated content.md pages found under the configured Azure prefix.</p>}
     {record && selected && <>
-      <div className="source-browser-toolbar"><span title={record.markdownBlob}>{record.id}</span><div><button className={mode === 'compare' ? 'chosen' : ''} onClick={() => setMode('compare')}>Original + Markdown</button><button className={mode === 'markdown' ? 'chosen' : ''} onClick={() => setMode('markdown')}>Markdown</button><button className={mode === 'layout' ? 'chosen' : ''} onClick={() => setMode('layout')}>Layout</button><label><input type="checkbox" checked={showBoxes} onChange={e => setShowBoxes(e.target.checked)}/> Boxes</label></div></div>
-      <div className={'source-browser-view source-browser-mode-' + mode}>
+      <div className="source-browser-toolbar"><span title={record.markdownBlob}>{record.id}</span><div><button className={mode === 'correct' ? 'chosen' : ''} onClick={() => setMode('correct')}>Edit / Correct Markdown</button><button className={mode === 'compare' ? 'chosen' : ''} onClick={() => setMode('compare')}>Original + Markdown</button><button className={mode === 'markdown' ? 'chosen' : ''} onClick={() => setMode('markdown')}>Markdown</button><button className={mode === 'layout' ? 'chosen' : ''} onClick={() => setMode('layout')}>Layout</button><label><input type="checkbox" checked={showBoxes} onChange={e => setShowBoxes(e.target.checked)}/> Boxes</label></div></div>
+      {mode === 'correct' ? (
+        <MarkdownCorrection key={`${selected.markdownBlob}:${selected.originalEtag}`} page={selected}/>
+      ) : <div className={'source-browser-view source-browser-mode-' + mode}>
         {mode === 'compare' && <div className="source-browser-pane"><h3>Original page image</h3>{selected.sourceUrl ? (/\.pdf$/i.test(selected.sourceBlob || '') ? <iframe title="Original PDF" src={selected.sourceUrl}/> : <img src={selected.sourceUrl} alt="Original scanned page"/>) : <p>Original source image not found.</p>}</div>}
         {(mode === 'compare' || mode === 'markdown') && <div className="source-browser-pane"><h3>Rendered Markdown</h3><div className="source-browser-markdown"><Markdown remarkPlugins={[gfm]} components={{img: ({src,alt}) => selected.figureUrls?.[src] ? <img src={selected.figureUrls[src]} alt={alt || 'Extracted figure'} /> : <span>[Image unavailable: {alt || src}]</span>}}>{withoutFrontmatter(selected.markdown)}</Markdown></div></div>}
         {mode === 'layout' && <div className="source-browser-pane"><h3>Layout reconstruction</h3>{selected.layout ? <LayoutCanvas data={selected.layout} figureUrls={Object.values(selected.figureUrls || {})} showBoxes={showBoxes}/> : <p>No layout.json for this page.</p>}</div>}
-      </div>
+      </div>}
       <div className="source-browser-meta"><span>Markdown: {record.markdownBlob}</span><span>Original: {selected.sourceBlob || 'Not found'}</span><span>Referenced figures: {Object.keys(selected.figureUrls || {}).length}</span></div>
     </>}
   </section>;

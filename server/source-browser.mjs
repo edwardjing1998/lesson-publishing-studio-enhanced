@@ -48,7 +48,7 @@ async function readLimitedBlob(name, maxBytes) {
   }
   const bytes = await blob.downloadToBuffer();
   if (bytes.length > maxBytes) throw Object.assign(new Error('Source file too large'), {statusCode: 413});
-  return { bytes, contentType: properties.contentType };
+  return { bytes, contentType: properties.contentType, etag: properties.etag };
 }
 
 export async function listSourcePages() {
@@ -124,7 +124,7 @@ async function originalSource(markdown, markdownBlob) {
 export async function getSourcePage(markdownBlob) {
   const name = validBlobName(markdownBlob, [generatedPrefix()]);
   if (!name.endsWith('/content.md')) throw Object.assign(new Error('Expected content.md'), {statusCode: 400});
-  const {bytes} = await readLimitedBlob(name, 2 * 1024 * 1024);
+  const {bytes, etag} = await readLimitedBlob(name, 2 * 1024 * 1024);
   const markdown = bytes.toString('utf8');
   const base = name.slice(0, -'content.md'.length);
   let layout = null;
@@ -143,6 +143,7 @@ export async function getSourcePage(markdownBlob) {
   const sourceBlob = await originalSource(markdown, name);
   return {
     markdownBlob: name,
+    originalEtag: etag,
     markdown,
     layout,
     sourceBlob,
