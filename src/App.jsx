@@ -2,6 +2,7 @@ import {useEffect,useMemo,useState} from 'react';
 import Markdown from 'react-markdown';
 import gfm from 'remark-gfm';
 import LayoutCanvas from './LayoutCanvas.jsx';
+import SourceBrowser from './SourceBrowser.jsx';
 import './source-preview.css';
 
 async function api(url,init={}){const response=await fetch(url,init),text=await response.text();let data;try{data=text?JSON.parse(text):{};}catch{data={error:text}}if(!response.ok)throw new Error(data.error||`Request failed (${response.status})`);return data;}
@@ -9,6 +10,7 @@ const send=(url,body,method='POST')=>api(url,{method,headers:{'Content-Type':'ap
 const Text=({children})=><Markdown remarkPlugins={[gfm]}>{children||''}</Markdown>;
 
 export default function App(){
+ const [workspaceTab,setWorkspaceTab]=useState('activities');
  const [options,setOptions]=useState([]),[types,setTypes]=useState([]),[book,setBook]=useState(''),[chapter,setChapter]=useState('');
  const [plans,setPlans]=useState([]),[planId,setPlanId]=useState(''),[bundle,setBundle]=useState(null),[activeProcessId,setActiveProcessId]=useState('');
  const [selected,setSelected]=useState({}),[variants,setVariants]=useState({}),[instruction,setInstruction]=useState('');
@@ -45,6 +47,11 @@ export default function App(){
 
  return <div className="app-shell">
   <header><div><span className="eyebrow">Approved plan → process activities → package</span><h1>Lesson Activity Publishing Studio</h1></div><button onClick={()=>setReload(value=>value+1)}>Refresh</button></header>
+  <nav className="studio-top-tabs" aria-label="Studio sections">
+    <button type="button" className={workspaceTab==='activities'?'chosen':''} onClick={()=>setWorkspaceTab('activities')}>Learning Activity Publishing</button>
+    <button type="button" className={workspaceTab==='browse'?'chosen':''} onClick={()=>setWorkspaceTab('browse')}>Azure Markdown & Images</button>
+  </nav>
+  {workspaceTab==='browse' ? <SourceBrowser/> : <>
   <section className="filters"><label>Book<select value={book} onChange={event=>changeBook(event.target.value)}>{books.map(value=><option key={value}>{value}</option>)}</select></label><label>Chapter<select value={chapter} onChange={event=>setChapter(event.target.value)}>{chapters.map(value=><option key={value}>{value}</option>)}</select></label><label>Learning plan<select value={planId} onChange={event=>setPlanId(event.target.value)}>{plans.map(plan=><option value={plan.plan_id} key={plan.plan_id}>{plan.source_title||plan.fine_page_id}</option>)}</select></label><label>Formal packages<input readOnly value={packages.length}/></label></section>
   {error&&<div role="alert" className="error">{error}</div>}
   {!bundle?<p className="empty">Select an approved learning plan.</p>:<>
@@ -60,5 +67,6 @@ export default function App(){
   </>}
   {previewOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setPreviewOpen(false);}}><section className="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title"><div className="modal-header"><div><span className="eyebrow">Preview and review</span><h2 id="preview-title">{activity?.title||'Generated activity'}</h2></div><button className="modal-close" type="button" aria-label="Close preview" onClick={()=>setPreviewOpen(false)}>×</button></div><div className="modal-status">{!activity?<span>Loading activity…</span>:<><span><b>Generation:</b> {activity.generation_status}</span><span><b>Review:</b> {activity.review_status}</span></>}</div>{activity?.generation_error&&<div className="error modal-error">{activity.generation_error}</div>}{activity?.generation_status==='SUCCEEDED'&&<div className="modal-body"><iframe className="preview modal-preview" title="Activity preview" src={`/api/activities/${encodeURIComponent(activityId)}/files/index.html`}/><aside className="modal-review"><h3>Review decision</h3><label>Review comment<textarea value={comment} maxLength="4000" onChange={event=>setComment(event.target.value)} placeholder="Optional reviewer comment"/></label><div className="review-actions vertical"><button className="approve" disabled={!!busyProcessId} onClick={()=>review('APPROVED')}>Approve</button><button className="changes" disabled={!!busyProcessId} onClick={()=>review('NEEDS_CHANGES')}>Needs changes</button><button className="reject" disabled={!!busyProcessId} onClick={()=>review('REJECTED')}>Reject</button></div></aside></div>}<div className="modal-footer"><button className="secondary" onClick={()=>setPreviewOpen(false)}>Close</button></div></section></div>}
   {sourceOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setSourceOpen(false);}}><section className="source-modal" role="dialog" aria-modal="true" aria-labelledby="source-preview-title"><div className="modal-header"><div><span className="eyebrow">Approved source page</span><h2 id="source-preview-title">{sourcePreview?.title||bundle.source.title}</h2></div><button className="modal-close" type="button" aria-label="Close source preview" onClick={()=>setSourceOpen(false)}>×</button></div>{sourceLoading&&<p className="empty">Loading original Markdown and Azure layout…</p>}{sourcePreview&&!sourceLoading&&<><div className="source-toolbar"><button className={!showSourceBoxes?'secondary active':''} onClick={()=>setShowSourceBoxes(false)}>Markdown</button><button className={showSourceBoxes?'secondary active':''} onClick={()=>setShowSourceBoxes(true)}>Layout reconstruction</button><label><input type="checkbox" checked={showSourceBoxes} onChange={event=>setShowSourceBoxes(event.target.checked)}/> Show layout boxes</label></div>{showSourceBoxes?<div className="source-layout"><LayoutCanvas data={sourcePreview.layout} figureUrls={sourcePreview.figureUrls} showBoxes={showSourceBoxes}/></div>:<div className="source-markdown"><Markdown remarkPlugins={[gfm]} components={{img:({src,alt})=>{const match=String(src||'').match(/figure-(\d+)\.(?:png|jpe?g|webp)$/i);const url=match?sourcePreview.figureUrls[Number(match[1])-1]:src;return <img src={url||''} alt={alt||''}/>;}}}>{sourcePreview.markdown||''}</Markdown></div>}</>}<div className="modal-footer"><button className="secondary" onClick={()=>setSourceOpen(false)}>Close</button></div></section></div>}
+  </>}
  </div>;
 }

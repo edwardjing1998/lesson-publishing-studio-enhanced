@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 
 import { c, requireConfig } from './config.mjs';
+import { mountSourceBrowser } from './source-browser.mjs';
 import {
   activityCatalog,
   safeSegment,
@@ -100,6 +101,9 @@ app.get('/api/health', async (request, response) => {
     operator: request.operator
   });
 });
+
+// Independent Azure Markdown browser; existing Basic authentication applies.
+mountSourceBrowser(app);
 
 app.get('/api/activity-types', (_request, response) => {
   response.json(activityCatalog());
@@ -772,7 +776,8 @@ app.use((error, _request, response, next) => {
     return next(error);
   }
 
-  response.status(500).json({
+  const statusCode = Number(error.statusCode);
+  response.status(Number.isInteger(statusCode) && statusCode >= 400 && statusCode <= 599 ? statusCode : 500).json({
     error:
       error.message ||
       'Unexpected server error'

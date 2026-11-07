@@ -1,0 +1,22 @@
+.source-browser{padding:22px 28px;min-height:calc(100vh - 140px);background:#f3f5f8}
+.source-browser-heading{display:flex;justify-content:space-between;align-items:center;gap:15px}
+.source-browser-heading h2{margin:0 0 5px}.source-browser-heading p{margin:0;color:#657285}
+.source-browser-filters{display:grid;grid-template-columns:repeat(3,minmax(130px,1fr)) minmax(230px,1fr);gap:14px;margin:22px 0;padding:18px;background:#fff;border-radius:10px}
+.source-browser-pager{display:flex;align-items:end;justify-content:space-around;gap:8px}.source-browser-pager span{white-space:nowrap;margin-bottom:8px}
+.source-browser-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;background:#14213d;color:white;border-radius:10px 10px 0 0}
+.source-browser-toolbar>span{overflow-wrap:anywhere}.source-browser-toolbar>div{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.source-browser-toolbar button{padding:8px;border:1px solid #8296ac;border-radius:5px;background:#eaf0f8;color:#17283e}
+.source-browser-toolbar button.chosen{background:#fca311;color:#14213d;font-weight:700}
+.source-browser-toolbar label{display:flex;align-items:center;gap:5px;color:white}.source-browser-toolbar input{width:auto;margin:0}
+.source-browser-view{display:grid;grid-template-columns:1fr 1fr;gap:16px;background:#e8edf3;padding:16px;min-height:480px}
+.source-browser-mode-markdown,.source-browser-mode-layout{grid-template-columns:1fr}
+.source-browser-pane{min-width:0;overflow:auto;max-height:78vh;background:white;border-radius:8px;padding:14px}
+.source-browser-pane h3{margin:0 0 14px}.source-browser-pane img{max-width:100%;height:auto;display:block;margin:10px auto}.source-browser-pane iframe{width:100%;min-height:520px;border:0}
+.source-browser-markdown{line-height:1.65;overflow-wrap:anywhere}.source-browser-markdown img{max-width:100%}
+.source-browser-meta{display:flex;flex-wrap:wrap;gap:16px;margin:12px 0;color:#657285;font-size:12px;overflow-wrap:anywhere}
+.source-browser-error{color:#a32020;background:#ffebeb;padding:12px;border-radius:7px}
+.studio-top-tabs{display:flex;gap:10px;padding:10px 28px;background:white;border-bottom:1px solid #dce1e8}
+.studio-top-tabs button{padding:10px 16px;border:1px solid #cbd3de;background:#f2f5fa;border-radius:8px;color:#17283e;font-weight:700}
+.studio-top-tabs button.chosen{background:#14213d;color:white}
+@media(max-width:900px){.source-browser-filters{grid-template-columns:1fr 1fr}.source-browser-view{grid-template-columns:1fr}.source-browser-heading{align-items:start}}
+@media(max-width:560px){.source-browser-filters{grid-template-columns:1fr}.source-browser-toolbar{flex-direction:column;align-items:start}}
