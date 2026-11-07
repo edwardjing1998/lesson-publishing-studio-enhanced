@@ -6,6 +6,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { c, requireConfig } from './config.mjs';
 import { mountSourceBrowser } from './source-browser.mjs';
 import { mountMarkdownCorrections } from './markdown-corrections.mjs';
+import {mountMarkdownDeepReview} from './markdown-deep-review.mjs';
 import {
   activityCatalog,
   safeSegment,
@@ -106,6 +107,7 @@ app.get('/api/health', async (request, response) => {
 // Independent Azure Markdown browser; existing Basic authentication applies.
 mountSourceBrowser(app);
 mountMarkdownCorrections(app);
+mountMarkdownDeepReview(app);
 
 app.get('/api/activity-types', (_request, response) => {
   response.json(activityCatalog());
