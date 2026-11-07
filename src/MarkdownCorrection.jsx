@@ -3,6 +3,7 @@ import Markdown from 'react-markdown';
 import gfm from 'remark-gfm';
 import math from 'remark-math';
 import katex from 'rehype-katex';
+import RenderedMarkdownModal from './RenderedMarkdownModal.jsx';
 
 async function request(url, options = {}) {
   const response = await fetch(url, {
@@ -29,6 +30,7 @@ export default function MarkdownCorrection({page}) {
   const [error,setError] = useState('');
   const [message,setMessage] = useState('');
   const [savedId,setSavedId] = useState('');
+  const [fullPreviewOpen,setFullPreviewOpen] = useState(false);
   const name = page?.markdownBlob || '';
   const historyUrl = `/api/v1/markdown/corrections?markdownBlob=${encodeURIComponent(name)}`;
 
@@ -102,6 +104,7 @@ export default function MarkdownCorrection({page}) {
     {error && <p className="source-browser-error" role="alert">{error}</p>}
     {message && <p className="correction-message" role="status">{message}</p>}
     <div className="correction-actions">
+      <button type="button" onClick={() => setFullPreviewOpen(true)}>Enlarge Rendered Markdown</button>
       <button type="button" disabled={!!busy || !page.sourceUrl} onClick={compare}>{busy==='ai'?'Comparing...':'AI Compare PNG + Markdown'}</button>
       <button type="button" disabled={!!busy || unchanged} onClick={() => {setDraft(page.markdown);setChanges([]);setUncertainties([]);setSavedId('');setSelectedRevisionId('');}}>Reset to original</button>
       <button type="button" disabled={!!busy} onClick={save}>{busy==='save'?'Saving...':'Save New Revision'}</button>
@@ -131,6 +134,7 @@ export default function MarkdownCorrection({page}) {
       {changes.map((x,i)=><p key={i}><b>{x.category || 'Change'}:</b> {x.before || ''} {' -> '} {x.after || ''} {x.reason ? `(${x.reason})` : ''}</p>)}
       {uncertainties.map((x,i)=><p key={`u${i}`}><b>Uncertain:</b> {String(x)}</p>)}
     </div>}
+    {fullPreviewOpen && <RenderedMarkdownModal markdown={draft} figureUrls={page.figureUrls} title="Corrected Markdown — Full-page preview" onClose={() => setFullPreviewOpen(false)}/>}
     <div className="correction-history"><h4>Saved correction revisions</h4>
       <select value={selectedRevisionId} disabled={!!busy} onChange={e=>selectRevision(e.target.value)} aria-label="Saved revision">
         <option value="">Choose revision...</option>
