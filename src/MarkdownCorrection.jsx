@@ -31,6 +31,7 @@ export default function MarkdownCorrection({page}) {
   const [message,setMessage] = useState('');
   const [savedId,setSavedId] = useState('');
   const [fullPreviewOpen,setFullPreviewOpen] = useState(false);
+  const [revisionPreview,setRevisionPreview] = useState(null);
   const name = page?.markdownBlob || '';
   const historyUrl = `/api/v1/markdown/corrections?markdownBlob=${encodeURIComponent(name)}`;
 
@@ -43,7 +44,7 @@ export default function MarkdownCorrection({page}) {
     let active = true;
     setDraft(page?.markdown || '');
     setChanges([]);setUncertainties([]);setError('');setMessage('');
-    setSavedId('');setSelectedRevisionId('');setRevisions([]);setApprovedRevisionId(null);
+    setSavedId('');setSelectedRevisionId('');setRevisions([]);setApprovedRevisionId(null);setRevisionPreview(null);
     if (!name) return () => {active=false;};
     request(`/api/v1/markdown/corrections?markdownBlob=${encodeURIComponent(name)}`)
       .then(value => {if(active){setRevisions(value.items || []);setApprovedRevisionId(value.approvedRevisionId || null);}})
@@ -77,13 +78,28 @@ export default function MarkdownCorrection({page}) {
     setMessage(`Saved immutable draft ${value.revisionId}. Original content.md was not changed.`);
   });
   const selectRevision = revisionId => run('load',async () => {
-    if (!revisionId) {setSelectedRevisionId('');return;}
+    if (!revisionId) {setSelectedRevisionId('');setRevisionPreview(null);return;}
     if (draft !== page.markdown && !window.confirm('Loading a revision replaces unsaved edits. Continue?')) return;
     const value = await request(`/api/v1/markdown/corrections/${encodeURIComponent(revisionId)}?markdownBlob=${encodeURIComponent(name)}`);
     setDraft(value.correctedMarkdown);
     setSelectedRevisionId(revisionId);
+    setRevisionPreview(null);
     setSavedId(revisionId);
     setMessage('Loaded saved revision.');
+  });
+  // Preview only an immutable saved revision fetched from Azure. Do not preview
+  // draft text here or replace unsaved edits in the editor.
+  const openSavedRevisionPreview = () => run('preview-revision', async () => {
+    if (!selectedRevisionId) throw new Error('Choose a saved revision to preview.');
+    const revisionId = selectedRevisionId;
+    const value = await request(`/api/v1/markdown/corrections/${encodeURIComponent(revisionId)}?markdownBlob=${encodeURIComponent(name)}`);
+    if (typeof value.correctedMarkdown !== 'string') throw new Error('Saved revision has no Markdown content.');
+    setRevisionPreview({
+      revisionId,
+      markdown: value.correctedMarkdown,
+      createdAt: revisions.find(item => item.revisionId === revisionId)?.createdAt || '',
+      approved: revisionId === approvedRevisionId
+    });
   });
   const approve = () => run('approve',async () => {
     if (!savedId) throw new Error('Save a revision before approving.');
@@ -136,11 +152,16 @@ export default function MarkdownCorrection({page}) {
     </div>}
     {fullPreviewOpen && <RenderedMarkdownModal markdown={draft} figureUrls={page.figureUrls} title="Corrected Markdown — Full-page preview" onClose={() => setFullPreviewOpen(false)}/>}
     <div className="correction-history"><h4>Saved correction revisions</h4>
+      <div className="correction-revision-controls">
       <select value={selectedRevisionId} disabled={!!busy} onChange={e=>selectRevision(e.target.value)} aria-label="Saved revision">
         <option value="">Choose revision...</option>
         {revisions.map(item=><option value={item.revisionId} key={item.revisionId}>{item.createdAt} - {item.revisionId.slice(0,8)} {item.revisionId===approvedRevisionId?'(APPROVED)':''}</option>)}
       </select>
+      <button type="button" className="saved-revision-preview-button" disabled={!!busy || !selectedRevisionId} onClick={openSavedRevisionPreview}>{busy === 'preview-revision' ? 'Loading preview...' : 'Enlarge Saved Revision'}</button>
+      </div>
+      <small>Choose a saved revision, then enlarge it to see its formatted Markdown. The preview reads the saved Azure revision, not unsaved editor text.</small>
       <small>Saving creates a new revision. Approval writes a separate pointer. Neither changes the original OCR file or Databricks tables.</small>
     </div>
+    {revisionPreview && <RenderedMarkdownModal markdown={revisionPreview.markdown} figureUrls={page.figureUrls} title={`Saved revision ${revisionPreview.revisionId.slice(0,8)}${revisionPreview.approved ? ' (APPROVED)' : ''}`} onClose={() => setRevisionPreview(null)}/>}
   </section>;
 }
