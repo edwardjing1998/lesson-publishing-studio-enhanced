@@ -165,7 +165,6 @@ export default function MarkdownCorrection({page}) {
       {deepJob && <section className="deep-review-result" aria-live="polite">
         <b>Deep review: {deepJob.status}</b>
         <p>Regions processed: {deepJob.regions?.length || 0} · Proposed edits: {deepJob.summary?.appliedEdits || 0} · Unresolved issues: {deepJob.summary?.unresolvedIssues || 0} · Uncertainties: {deepJob.summary?.uncertaintyCount || 0}</p>
-        {deepLoading && deepJob.rateLimit?.active && <p role="status">Azure OpenAI throttled (HTTP {deepJob.rateLimit.status}). Automatic retry {deepJob.rateLimit.attempt} of {deepJob.rateLimit.maxRetries}; delay {Math.ceil(deepJob.rateLimit.delayMs / 1000)} seconds. Completed work is retained within this job.</p>}
         {(deepJob.regions || []).map(r=><details key={r.id}><summary>{r.id}: {r.status} · {r.applied?.length || 0} changes · {r.issues?.length || 0} issues</summary>
           {(r.applied || []).map((v,i)=><p key={`a${i}`}><b>Proposed edit:</b> {v.before} → {v.after}</p>)}
           {(r.issues || []).map((v,i)=><p key={`i${i}`}><b>{v.type}:</b> {v.message}</p>)}
