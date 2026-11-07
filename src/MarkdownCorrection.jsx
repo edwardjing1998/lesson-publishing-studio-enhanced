@@ -22,12 +22,6 @@ export default function MarkdownCorrection({page}) {
   const [changes,setChanges] = useState([]);
   const [uncertainties,setUncertainties] = useState([]);
   const [note,setNote] = useState('');
-  const [aiInstructions,setAiInstructions] = useState('Compare all mathematical symbols, questions, tables, and missing text against the PNG.');
-  const [maxRegions,setMaxRegions] = useState(6);
-  const [maxPasses,setMaxPasses] = useState(2);
-  const [segmentation,setSegmentation] = useState('layout');
-  const [deepJob,setDeepJob] = useState(null);
-  const [deepLoading,setDeepLoading] = useState(false);
   const [revisions,setRevisions] = useState([]);
   const [approvedRevisionId,setApprovedRevisionId] = useState(null);
   const [selectedRevisionId,setSelectedRevisionId] = useState('');
@@ -47,7 +41,7 @@ export default function MarkdownCorrection({page}) {
     let active = true;
     setDraft(page?.markdown || '');
     setChanges([]);setUncertainties([]);setError('');setMessage('');
-    setSavedId('');setSelectedRevisionId('');setRevisions([]);setApprovedRevisionId(null);setDeepJob(null);setDeepLoading(false);
+    setSavedId('');setSelectedRevisionId('');setRevisions([]);setApprovedRevisionId(null);
     if (!name) return () => {active=false;};
     request(`/api/v1/markdown/corrections?markdownBlob=${encodeURIComponent(name)}`)
       .then(value => {if(active){setRevisions(value.items || []);setApprovedRevisionId(value.approvedRevisionId || null);}})
@@ -63,7 +57,7 @@ export default function MarkdownCorrection({page}) {
   }
   const compare = () => run('ai',async () => {
     if (draft !== page.markdown && !window.confirm('AI comparison will replace your unsaved edits. Continue?')) return;
-    const value = await send('/api/v1/markdown/compare',{markdownBlob:name,instructions:aiInstructions});
+    const value = await send('/api/v1/markdown/compare',{markdownBlob:name});
     if (value.originalEtag !== page.originalEtag) throw new Error('Source changed. Refresh the page.');
     setDraft(value.correctedMarkdown);
     setChanges(value.changes || []);
@@ -71,43 +65,6 @@ export default function MarkdownCorrection({page}) {
     setSavedId('');
     setMessage('AI proposed corrections. Review all changes before saving.');
   });
-  async function deepReview() {
-    if(draft !== page.markdown && !window.confirm('Deep review will propose edits to your current draft. Continue?'))return;
-    setError('');setMessage('');setDeepLoading(true);setDeepJob(null);
-    try {
-      const started=await send('/api/v1/markdown/deep-review',{
-        markdownBlob:name,originalEtag:page.originalEtag,markdown:draft,
-        instructions:aiInstructions,maxRegions,maxPasses,mode:segmentation
-      });
-      // Poll while this component remains mounted. Cleanup on unmount below.
-      setDeepJob({jobId:started.jobId,status:started.status});
-    }catch(err){setDeepLoading(false);setError(err.message);}
-  }
-  useEffect(()=>{
-    const id=deepJob?.jobId;
-    if(!id || !deepLoading)return undefined;
-    let active=true;
-    const poll=async()=>{
-      try{
-        const result=await request(`/api/v1/markdown/deep-review/${encodeURIComponent(id)}`);
-        if(!active)return;
-        setDeepJob(result);
-        if(['FAILED','REVIEW_REQUIRED'].includes(result.status)){
-          setDeepLoading(false);
-          if(result.status==='FAILED')setError(result.error || 'Deep review failed');
-          else setMessage('Deep review complete. Check every flagged region and correction before saving.');
-        }
-      }catch(err){if(active){setDeepLoading(false);setError(err.message);}}
-    };
-    poll();const timer=setInterval(poll,3000);
-    return()=>{active=false;clearInterval(timer);};
-  },[deepJob?.jobId,deepLoading]);
-  function applyDeepDraft(){
-    if(!deepJob?.correctedMarkdown || deepJob.status!=='REVIEW_REQUIRED')return;
-    if(!window.confirm('Replace your current editor draft with the proposed deep correction? Review all changes before saving.'))return;
-    setDraft(deepJob.correctedMarkdown);setSavedId('');setSelectedRevisionId('');
-    setMessage('Deep correction loaded into editor. Human review and Save New Revision are still required.');
-  }
   const save = () => run('save',async () => {
     const value = await send('/api/v1/markdown/corrections',{
       markdownBlob:name,originalEtag:page.originalEtag,correctedMarkdown:draft,note
@@ -149,32 +106,6 @@ export default function MarkdownCorrection({page}) {
       <button type="button" disabled={!!busy || unchanged} onClick={() => {setDraft(page.markdown);setChanges([]);setUncertainties([]);setSavedId('');setSelectedRevisionId('');}}>Reset to original</button>
       <button type="button" disabled={!!busy} onClick={save}>{busy==='save'?'Saving...':'Save New Revision'}</button>
       <button type="button" disabled={!!busy || !savedId} onClick={approve}>Approve Saved Revision</button>
-    </div>
-    <div className="deep-review-controls">
-      <h4>AI correction instructions</h4>
-      <textarea className="deep-instructions" value={aiInstructions} maxLength={2000} onChange={e=>setAiInstructions(e.target.value)} aria-label="AI correction instructions"/>
-      <div className="deep-review-options">
-        <label>Crop strategy <select value={segmentation} onChange={e=>setSegmentation(e.target.value)}><option value="layout">Layout-assisted coverage</option><option value="grid">Overlapping grid</option></select></label>
-        <label>Regions <select value={maxRegions} onChange={e=>setMaxRegions(Number(e.target.value))}>{[4,6,8,12].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
-        <label>Verification passes <select value={maxPasses} onChange={e=>setMaxPasses(Number(e.target.value))}>{[1,2,3].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
-      </div>
-      <div className="correction-actions">
-        <button type="button" disabled={!!busy || deepLoading || !page.sourceUrl} onClick={deepReview}>{deepLoading ? 'Deep review running…' : 'Deep Correct & Verify'}</button>
-        <button type="button" disabled={!!busy || deepLoading || deepJob?.status!=='REVIEW_REQUIRED'} onClick={applyDeepDraft}>Apply Deep Correction to Editor</button>
-      </div>
-      {deepJob && <section className="deep-review-result" aria-live="polite">
-        <b>Deep review: {deepJob.status}</b>
-        <p>Regions processed: {deepJob.regions?.length || 0} · Proposed edits: {deepJob.summary?.appliedEdits || 0} · Unresolved issues: {deepJob.summary?.unresolvedIssues || 0} · Uncertainties: {deepJob.summary?.uncertaintyCount || 0}</p>
-        {(deepJob.regions || []).map(r=><details key={r.id}><summary>{r.id}: {r.status} · {r.applied?.length || 0} changes · {r.issues?.length || 0} issues</summary>
-          {(r.applied || []).map((v,i)=><p key={`a${i}`}><b>Proposed edit:</b> {v.before} → {v.after}</p>)}
-          {(r.issues || []).map((v,i)=><p key={`i${i}`}><b>{v.type}:</b> {v.message}</p>)}
-          {(r.uncertainties || []).map((v,i)=><p key={`u${i}`}><b>Uncertain:</b> {String(v)}</p>)}
-          {(r.rejected || []).map((v,i)=><p key={`r${i}`}><b>Unapplied:</b> {v.reason} — {v.before}</p>)}
-        </details>)}
-        {(deepJob.checks?.arithmetic || []).map((v,i)=><p key={`m${i}`}><b>Arithmetic review:</b> {v.message}</p>)}
-        {deepJob.error && <p role="alert">{deepJob.error}</p>}
-        <small>Model verification does not prove full accuracy. Inspect the original image and review all unresolved content manually.</small>
-      </section>}
     </div>
     <label className="correction-note">Revision note
       <input value={note} maxLength={1000} onChange={e=>setNote(e.target.value)} placeholder="Describe the corrections" />
