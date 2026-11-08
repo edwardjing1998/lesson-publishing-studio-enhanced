@@ -3,6 +3,7 @@ import path from 'node:path/posix';
 import {BlobServiceClient} from '@azure/storage-blob';
 import {DefaultAzureCredential} from '@azure/identity';
 import {getSourcePage} from './source-browser.mjs';
+import {splitMarkdownFrontMatter} from '../shared/markdown-blocks.mjs';
 
 const MAX_MARKDOWN = 100_000;
 const MAX_AI_MARKDOWN = 20_000;
@@ -34,8 +35,8 @@ function validateCorrection(original, corrected) {
   if (JSON.stringify(imageLinks(original)) !== JSON.stringify(imageLinks(corrected))) {
     throw bad('Image references changed. Preserve all original Markdown figure links.', 422);
   }
-  const frontmatter = text => text.match(/^---\s*\n[\s\S]*?\n---(?:\s*\n|$)/)?.[0] || '';
-  if (frontmatter(original) !== frontmatter(corrected)) {
+  if (splitMarkdownFrontMatter(original).frontMatter !==
+      splitMarkdownFrontMatter(corrected).frontMatter) {
     throw bad('Original YAML front matter must remain unchanged.', 422);
   }
 }
