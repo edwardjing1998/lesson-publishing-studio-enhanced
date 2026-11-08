@@ -7,10 +7,10 @@ const text = (value, max, name, required = true) => {
 };
 const validateSteps = steps => {
   if (steps == null) return [];
-  if (!Array.isArray(steps) || steps.length > 10) fail('reasoningSteps must contain at most 10 steps.');
+  if (!Array.isArray(steps) || steps.length > 12) fail('reasoningSteps must contain at most 12 steps.');
   return steps.map((step, i) => ({
     title: text(step?.title, 160, `Step ${i + 1} title`),
-    explanation: text(step?.explanation, 900, `Step ${i + 1} explanation`)
+    explanation: text(step?.explanation, 1500, `Step ${i + 1} explanation`)
   }));
 };
 const QUESTION_VALIDATORS = {
@@ -43,6 +43,7 @@ export function validateGenericExerciseSpec(raw, expectedCount) {
   const questions=raw.questions.map((q,i)=>{
     if(!q || typeof q!=='object' || Array.isArray(q) || !Object.hasOwn(QUESTION_VALIDATORS,q.kind)) fail(`Unsupported question kind at ${i+1}.`);
     const base={id:i+1,kind:q.kind,prompt:text(q.prompt,1500,`Question ${i+1} prompt`),
+      // Keep the summary concise, while detailed student-facing reasoning lives in reasoningSteps.
       explanation:text(q.explanation,1800,`Question ${i+1} explanation`),
       sourceEvidence:text(q.sourceEvidence,600,'sourceEvidence'),
       reasoningSteps:validateSteps(q.reasoningSteps)};

@@ -33,3 +33,44 @@ test('open-response questions use review rubric, not automatic grading',()=>{
  const html=buildAnyExerciseHtml(validateGenericExerciseSpec({...sample,questions:[sample.questions[3]]},1));
  assert.match(html,/teacher assessment is recommended/i);
 });
+
+// Regression coverage: the model sometimes places the entire chain of steps in
+// explanation or returns it as an array. These must fail validation so the API
+// can ask for a conforming model response instead of silently losing content.
+test('accepts concise explanation with separate detailed reasoning steps', () => {
+ const question={...sample.questions[0],explanation:'Short summary.',reasoningSteps:[
+  {title:'Identify the property',explanation:'A'.repeat(1200)},
+  {title:'Apply the property',explanation:'Use the relationship to obtain the answer.'}
+ ]};
+ const result=validateGenericExerciseSpec({...sample,questions:[question]},1);
+ assert.equal(result.questions[0].reasoningSteps.length,2);
+ assert.equal(result.questions[0].reasoningSteps[0].explanation.length,1200);
+});
+
+test('rejects explanation over 1800 characters', () => {
+ assert.throws(
+  () => validateGenericExerciseSpec({...sample,questions:[{...sample.questions[0],explanation:'x'.repeat(1801)}]},1),
+  /Question 1 explanation must be a string of at most 1800 characters/
+ );
+});
+
+test('rejects explanation array and object', () => {
+ for (const explanation of [['first step','next step'],{step:'reason'}]) {
+  assert.throws(
+   () => validateGenericExerciseSpec({...sample,questions:[{...sample.questions[0],explanation}]},1),
+   /Question 1 explanation must be a string of at most 1800 characters/
+  );
+ }
+});
+
+test('accepts up to 12 student-facing reasoning steps', () => {
+ const reasoningSteps=Array.from({length:12},(_,i)=>({title:`Step ${i+1}`,explanation:'Explain the method.'}));
+ const result=validateGenericExerciseSpec({...sample,questions:[{...sample.questions[0],reasoningSteps}]},1);
+ assert.equal(result.questions[0].reasoningSteps.length,12);
+});
+
+test('rejects more than 12 steps or oversized step explanations', () => {
+ const step={title:'Step',explanation:'x'};
+ assert.throws(() => validateGenericExerciseSpec({...sample,questions:[{...sample.questions[0],reasoningSteps:Array(13).fill(step)}]},1),/at most 12 steps/);
+ assert.throws(() => validateGenericExerciseSpec({...sample,questions:[{...sample.questions[0],reasoningSteps:[{title:'Step',explanation:'x'.repeat(1501)}]}]},1),/Step 1 explanation must be a string of at most 1500 characters/);
+});
