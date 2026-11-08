@@ -4,6 +4,7 @@ COPY package*.json ./
 RUN npm ci
 COPY index.html vite.config.js ./
 COPY src ./src
+COPY shared ./shared
 RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
@@ -11,6 +12,7 @@ ENV NODE_ENV=production SERVER_PORT=8083
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY server ./server
+COPY shared ./shared
 COPY --from=build /app/dist ./dist
 USER 1001
 EXPOSE 8083
