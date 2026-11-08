@@ -5,6 +5,7 @@ import gfm from 'remark-gfm';
 import math from 'remark-math';
 import katex from 'rehype-katex';
 import {defaultLayout,markdownBlocks} from '../shared/markdown-blocks.mjs';
+import RevisionExerciseTab from './RevisionExerciseTab.jsx';
 
 function Figure({src,alt,figureUrls}) {
   const url = figureUrls?.[src];
@@ -30,13 +31,14 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
   const [message,setMessage] = useState('');
   const [dirty,setDirty] = useState(false);
   const [dragged,setDragged] = useState(null);
+  const [activeTab,setActiveTab] = useState('markdown');
   const closeButton = useRef(null);
   const dragIndex = useRef(null);
   const endpoint = `/api/v1/markdown/corrections/${encodeURIComponent(revisionId || '')}/layout`;
 
   useEffect(()=>{
     let mounted=true;
-    setBlocks(initialLayout || defaultLayout(markdown));setLayoutEtag(null);setDirty(false);setError('');setMessage('');
+    setBlocks(initialLayout || defaultLayout(markdown));setLayoutEtag(null);setDirty(false);setError('');setMessage('');setActiveTab('markdown');
     if (!editable) return ()=>{mounted=false;};
     setBusy(true);
     getJson(`${endpoint}?markdownBlob=${encodeURIComponent(markdownBlob)}`)
@@ -94,7 +96,11 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
         <div><h2 id="full-markdown-title">{title}</h2><p>{editable ? 'Drag blocks to reorder the Markdown. Save as a new .md revision, then view it in Edit / Correct Markdown.' : 'Rendered Markdown, equations, tables, and figures.'}</p></div>
         <button type="button" ref={closeButton} onClick={close} aria-label="Close Markdown popup">Close ✕</button>
       </header>
-      {editable && <div className="revision-layout-toolbar">
+      {editable && <nav className="revision-modal-tabs" aria-label="Saved revision modal tabs">
+        <button type="button" className={activeTab==='markdown'?'selected':''} aria-current={activeTab==='markdown'?'page':undefined} onClick={()=>setActiveTab('markdown')}>Markdown Layout</button>
+        <button type="button" className={activeTab==='exercise'?'selected':''} aria-current={activeTab==='exercise'?'page':undefined} onClick={()=>setActiveTab('exercise')}>AI Exercise Page</button>
+      </nav>}
+      {editable && activeTab==='markdown' && <div className="revision-layout-toolbar">
         <strong>Saved revision layout editor</strong><span>{busy?'Loading saved layout…':`${blocks.length} blocks`}</span>
         <button disabled={busy||saving||!dirty} type="button" onClick={save}>{saving?'Saving…':'Save Layout & Markdown as New Revision'}</button>
         <button disabled={busy||saving} type="button" onClick={()=>{setBlocks(defaultLayout(markdown));setDirty(true);}}>Reset positions</button>
@@ -102,7 +108,7 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
       </div>}
       {error && <p className="revision-layout-error" role="alert">{error}</p>}
       {message && <p className="revision-layout-message" role="status">{message}</p>}
-      <div className="full-markdown-document">
+      {editable && activeTab==='exercise' ? <RevisionExerciseTab revisionId={revisionId} markdownBlob={markdownBlob}/> : <div className="full-markdown-document">
         <article className="full-markdown-article revision-layout-canvas">
           {blocks.map((item,index)=>{
             const source=lookup[item.id];if(!source)return null;
@@ -122,9 +128,9 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
             </div>;
           })}
         </article>
-      </div>
+      </div>}
       <footer className="full-markdown-footer">
-        <span>{editable?'Save creates a NEW Markdown revision with reordered content and its own layout.json. Original OCR and previous revisions remain unchanged.':'Preview only — no changes are saved.'}</span>
+        <span>{editable ? (activeTab==='exercise' ? 'Exercise generation does not modify the saved Markdown. Download an independent HTML practice page.' : 'Saving layout creates a NEW Markdown revision. Original OCR and previous revisions remain unchanged.') : 'Preview only — no changes are saved.'}</span>
         <button type="button" onClick={close}>Close</button>
       </footer>
     </section>

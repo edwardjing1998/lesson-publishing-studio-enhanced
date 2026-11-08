@@ -7,6 +7,7 @@ import { c, requireConfig } from './config.mjs';
 import { mountSourceBrowser } from './source-browser.mjs';
 import { mountMarkdownCorrections } from './markdown-corrections.mjs';
 import { mountRevisionLayout } from './revision-layout.mjs';
+import { mountRevisionExercises } from './revision-exercises.mjs';
 import {
   activityCatalog,
   safeSegment,
@@ -108,6 +109,7 @@ app.get('/api/health', async (request, response) => {
 mountSourceBrowser(app);
 mountMarkdownCorrections(app);
 mountRevisionLayout(app);
+mountRevisionExercises(app);
 
 app.get('/api/activity-types', (_request, response) => {
   response.json(activityCatalog());
