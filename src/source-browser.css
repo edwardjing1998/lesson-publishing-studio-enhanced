@@ -88,3 +88,9 @@
 .revision-layout-content{overflow-wrap:anywhere;min-width:0}
 .revision-layout-content img{max-width:100%}
 @media(max-width:720px){.revision-layout-toolbar{padding:10px}.revision-layout-controls{gap:5px}.revision-layout-block{width:100%!important}}
+
+/* Render the layout of a newly saved Markdown revision in the correction preview. */
+.correction-layout-row{width:100%;min-width:0;margin-bottom:10px;clear:both}
+.correction-layout-block{box-sizing:border-box;max-width:100%;min-width:0;overflow-wrap:anywhere}
+.correction-layout-block img{max-width:100%;height:auto}
+@media(max-width:720px){.correction-layout-block{width:100%!important}}

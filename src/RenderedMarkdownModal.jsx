@@ -18,11 +18,11 @@ const getJson = async (url,options={}) => {
   return data;
 };
 
-export default function RenderedMarkdownModal({markdown,figureUrls={},title='Full Markdown preview',onClose,revisionId,markdownBlob}) {
+export default function RenderedMarkdownModal({markdown,figureUrls={},title='Full Markdown preview',onClose,revisionId,markdownBlob,onSavedRevision,initialLayout=null}) {
   const editable = Boolean(revisionId && markdownBlob);
   const content = useMemo(()=>markdownBlocks(markdown),[markdown]);
   const lookup = useMemo(()=>Object.fromEntries(content.map(item=>[item.id,item])),[content]);
-  const [blocks,setBlocks] = useState(()=>defaultLayout(markdown));
+  const [blocks,setBlocks] = useState(()=>initialLayout || defaultLayout(markdown));
   const [layoutEtag,setLayoutEtag] = useState(null);
   const [busy,setBusy] = useState(false);
   const [saving,setSaving] = useState(false);
@@ -36,7 +36,7 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
 
   useEffect(()=>{
     let mounted=true;
-    setBlocks(defaultLayout(markdown));setLayoutEtag(null);setDirty(false);setError('');setMessage('');
+    setBlocks(initialLayout || defaultLayout(markdown));setLayoutEtag(null);setDirty(false);setError('');setMessage('');
     if (!editable) return ()=>{mounted=false;};
     setBusy(true);
     getJson(`${endpoint}?markdownBlob=${encodeURIComponent(markdownBlob)}`)
@@ -44,7 +44,7 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
       .catch(err=>{if(mounted)setError(err.message);})
       .finally(()=>{if(mounted)setBusy(false);});
     return ()=>{mounted=false;};
-  },[markdown,editable,endpoint,markdownBlob]);
+  },[markdown,editable,endpoint,markdownBlob,initialLayout]);
 
   useEffect(()=>{
     const previousFocus=document.activeElement;
@@ -75,12 +75,13 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
   async function save(){
     setSaving(true);setError('');setMessage('');
     try{
-      const data=await getJson(endpoint,{
-        method:'PUT',headers:{'Content-Type':'application/json'},
+      const data=await getJson(`/api/v1/markdown/corrections/${encodeURIComponent(revisionId)}/save-layout-as-revision`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({markdownBlob,blocks,layoutEtag})
       });
-      setLayoutEtag(data.layoutEtag);setDirty(false);
-      setMessage('Layout saved to this revision in Azure Blob Storage.');
+      setDirty(false);
+      setMessage(`Created a new Markdown revision: ${data.revisionId}`);
+      await onSavedRevision?.(data);
     } catch(err){setError(err.message);}finally{setSaving(false);}
   }
   function close(){if(!dirty || window.confirm('Discard unsaved layout changes?'))onClose();}
@@ -90,12 +91,12 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
   return createPortal(<div className="full-markdown-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)close();}}>
     <section id="full-markdown-dialog" className="full-markdown-dialog" role="dialog" aria-modal="true" aria-labelledby="full-markdown-title">
       <header className="full-markdown-header">
-        <div><h2 id="full-markdown-title">{title}</h2><p>{editable ? 'Drag blocks into a new order. Adjust their widths and alignment, then save the revision layout.' : 'Rendered Markdown, equations, tables, and figures.'}</p></div>
+        <div><h2 id="full-markdown-title">{title}</h2><p>{editable ? 'Drag blocks to reorder the Markdown. Save as a new .md revision, then view it in Edit / Correct Markdown.' : 'Rendered Markdown, equations, tables, and figures.'}</p></div>
         <button type="button" ref={closeButton} onClick={close} aria-label="Close Markdown popup">Close ✕</button>
       </header>
       {editable && <div className="revision-layout-toolbar">
         <strong>Saved revision layout editor</strong><span>{busy?'Loading saved layout…':`${blocks.length} blocks`}</span>
-        <button disabled={busy||saving||!dirty} type="button" onClick={save}>{saving?'Saving…':'Save Layout JSON'}</button>
+        <button disabled={busy||saving||!dirty} type="button" onClick={save}>{saving?'Saving…':'Save Layout & Markdown as New Revision'}</button>
         <button disabled={busy||saving} type="button" onClick={()=>{setBlocks(defaultLayout(markdown));setDirty(true);}}>Reset positions</button>
         {dirty && <small>Unsaved changes</small>}
       </div>}
@@ -123,7 +124,7 @@ export default function RenderedMarkdownModal({markdown,figureUrls={},title='Ful
         </article>
       </div>
       <footer className="full-markdown-footer">
-        <span>{editable?'Layout changes apply only to this saved revision; original OCR layout.json and Markdown text are unchanged.':'Preview only — no changes are saved.'}</span>
+        <span>{editable?'Save creates a NEW Markdown revision with reordered content and its own layout.json. Original OCR and previous revisions remain unchanged.':'Preview only — no changes are saved.'}</span>
         <button type="button" onClick={close}>Close</button>
       </footer>
     </section>
